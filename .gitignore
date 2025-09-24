@@ -1,0 +1,22 @@
+# 環境変数ファイル
+.env
+
+# Python キャッシュ / バイトコード
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 仮想環境
+.venv/
+venv/
+ENV/
+
+# ビルド成果物
+build/
+dist/
+*.egg-info/
+
+# OSごとの不要ファイル
+.DS_Store
+Thumbs.db
