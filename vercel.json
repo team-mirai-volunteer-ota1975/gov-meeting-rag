@@ -1,11 +1,8 @@
 {
-  "builds": [
-    {
-      "src": "api/app.py",
-      "use": "@vercel/python"
+  "functions": {
+    "api/main.py": {
+      "runtime": "python3.11",
+      "framework": "fastapi"
     }
-  ],
-  "routes": [
-    { "src": "/api/.*", "dest": "api/app.py" }
-  ]
+  }
 }
