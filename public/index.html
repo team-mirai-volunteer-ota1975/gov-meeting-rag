@@ -53,7 +53,7 @@
         ministry: form.ministry.value || null,
       };
       try {
-        const result = await postData("/api/search", data);
+        const result = await postData("/app/search", data);
         document.getElementById("result").textContent = JSON.stringify(result, null, 2);
       } catch (err) {
         document.getElementById("result").textContent = err;
@@ -68,7 +68,7 @@
         ministry: form.ministry.value || null,
       };
       try {
-        const result = await postData("/api/summary_search", data);
+        const result = await postData("/app/summary_search", data);
         document.getElementById("result").textContent = JSON.stringify(result, null, 2);
       } catch (err) {
         document.getElementById("result").textContent = err;

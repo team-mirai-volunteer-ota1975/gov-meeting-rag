@@ -10,9 +10,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init/restore.sh:/docker-entrypoint-initdb.d/restore.sh:ro
-  api:
+  app:
     build:
-      context: ./api
+      context: ./app
     environment:
       DATABASE_URL: postgres://myuser:mypass@db:5432/mydb
     depends_on:
