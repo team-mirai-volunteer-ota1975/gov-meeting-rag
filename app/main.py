@@ -92,7 +92,12 @@ def healthz():
 def search(req: SearchRequest) -> List[Dict[str, Any]]:
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=400, detail="query is required")
-    top_k = max(1, min(100, req.top_k or 5))
+    has_top_k = "top_k" in req.__fields_set__
+    requested_top_k = req.top_k if has_top_k else 5
+    final_top_k = requested_top_k if requested_top_k and requested_top_k > 0 else 5
+    final_top_k = max(1, min(20, final_top_k))
+    fetch_limit = final_top_k * 5 if has_top_k else 5 * 5
+    fetch_limit = max(fetch_limit, final_top_k)
 
     # Embed query
     vec = provider.embed([req.query])[0]
@@ -106,27 +111,56 @@ def search(req: SearchRequest) -> List[Dict[str, Any]]:
         JOIN meeting_metadata m ON c.doc_id = m.doc_id
         WHERE (:ministry IS NULL OR m.ministry = :ministry)
         ORDER BY c.embedding <=> CAST(:query_vec AS vector)
-        LIMIT :top_k
+        LIMIT :limit
         """
     )
 
     with engine.begin() as conn:
-        rows = conn.execute(sql, {
-            "query_vec": vec_lit,
-            "ministry": req.ministry,
-            "top_k": top_k,
-        }).fetchall()
+        rows = conn.execute(
+            sql,
+            {
+                "query_vec": vec_lit,
+                "ministry": req.ministry,
+                "limit": fetch_limit,
+            },
+        ).fetchall()
 
-    results = []
+    grouped_results: Dict[str, Dict[str, Any]] = {}
     for r in rows:
-        results.append({
-            "url": r[0],
-            "council_name": r[1],
-            "date": r[2].isoformat() if r[2] else None,
-            "chunk_text": r[3],
-            "score": float(r[4]) if r[4] is not None else None,
+        url = r[0]
+        score_val = float(r[4]) if r[4] is not None else 0.0
+        if url not in grouped_results:
+            grouped_results[url] = {
+                "url": url,
+                "council_name": r[1],
+                "date": r[2].isoformat() if r[2] else None,
+                "_scores": [score_val],
+                "_chunks": [r[3]],
+            }
+        else:
+            grouped_results[url]["_scores"].append(score_val)
+            grouped_results[url]["_chunks"].append(r[3])
+
+    unique_results: List[Dict[str, Any]] = []
+    for data in grouped_results.values():
+        scores = data.pop("_scores", [])
+        chunks = data.pop("_chunks", [])
+        match_count = len(scores)
+        avg_score = sum(scores) / match_count if match_count else 0.0
+        best_idx = max(range(match_count), key=lambda i: scores[i]) if match_count else None
+        best_chunk = chunks[best_idx] if best_idx is not None else None
+
+        unique_results.append({
+            "url": data["url"],
+            "council_name": data["council_name"],
+            "date": data["date"],
+            "chunk_text": best_chunk,
+            "score": avg_score if match_count else None,
+            "match_count": match_count,
         })
-    return results
+
+    unique_results.sort(key=lambda item: (-item["match_count"], -(item["score"] or 0.0)))
+    return unique_results[:final_top_k]
 
 
 @app.post("/summary_search")
